@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <style>
+        .section {
+            margin-bottom: 2rem;
+        }
+        .dashboard-card {
+            transition: all 0.3s ease;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .sample-data-table {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-indigo-700 to-purple-700 text-white shadow-lg py-4">
+            <div class="container mx-auto px-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-utensils text-2xl mr-3"></i>
+                    <h1 class="text-2xl font-bold">RestaurantIQ Analytics</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="help-btn" class="bg-white text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition">
+                        <i class="fas fa-question-circle mr-2"></i>Help
+                    </button>
+                    <button id="settings-btn" class="bg-white text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition">
+                        <i class="fas fa-cog mr-2"></i>Settings
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow container mx-auto px-4 py-8">
+            <!-- Navigation Tabs -->
+            <div class="mb-8">
+                <ul class="flex border-b">
+                    <li class="mr-1">
+                        <a href="#" class="tab-link bg-white inline-block py-2 px-4 text-indigo-700 font-semibold rounded-t-lg border-l border-t border-r active" data-tab="upload">
+                            <i class="fas fa-upload mr-2"></i>Upload Data
+                        </a>
+                    </li>
+                    <li class="mr-1">
+                        <a href="#" class="tab-link bg-gray-200 inline-block py-2 px-4 text-gray-700 font-semibold rounded-t-lg border-l border-t border-r" data-tab="dashboard">
+                            <i class="fas fa-chart-bar mr-2"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="mr-1">
+                        <a href="#" class="tab-link bg-gray-200 inline-block py-2 px-4 text-gray-700 font-semibold rounded-t-lg border-l border-t border-r" data-tab="customers">
+                            <i class="fas fa-users mr-2"></i>Customer Analysis
+                        </a>
+                    </li>
+                    <li class="mr-1">
+                        <a href="#" class="tab-link bg-gray-200 inline-block py-2 px-4 text-gray-700 font-semibold rounded-t-lg border-l border-t border-r" data-tab="campaigns">
+                            <i class="fas fa-bullhorn mr-2"></i>SMS Campaigns
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Upload Data Tab -->
+            <div id="upload-tab" class="tab-content active">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h2 class="text-2xl font-bold mb-4">Upload Customer Purchase Data</h2>
+                    <p class="mb-6 text-gray-600">Upload your customer purchase dataset to analyze customer behavior, calculate Lifetime Value (LTV), predict churn risk, and create targeted SMS campaigns.</p>
+                    
+                    <div class="flex flex-col md:flex-row gap-8">
+                        <div class="w-full md:w-1/2">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-500 transition-colors">
+                                <i class="fas fa-file-upload text-5xl text-gray-400 mb-4"></i>
+                                <h3 class="text-xl font-semibold mb-2">Drag & Drop Your CSV File</h3>
+                                <p class="text-gray-500 mb-4">Supports CSV files up to 2GB</p>
+                                <input type="file" id="file-upload" class="hidden" accept=".csv">
+                                <label for="file-upload" class="bg-indigo-600 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-indigo-700 transition-colors">
+                                    Select File
+                                </label>
+                                <div id="file-info" class="mt-4 hidden">
+                                    <div class="flex items-center justify-center">
+                                        <i class="fas fa-file-csv text-indigo-500 mr-2"></i>
+                                        <span id="file-name" class="font-medium"></span>
+                                    </div>
+                                    <div class="mt-2 text-sm text-gray-500" id="file-size"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h4 class="font-semibold mb-2">Required Data Format:</h4>
+                                <p class="text-sm text-gray-600 mb-3">Your CSV should include the following columns:</p>
+                                <ul class="text-sm text-gray-600 list-disc pl-5 mb-4">
+                                    <li>customer_id: Unique identifier for each customer</li>
+                                    <li>transaction_date: Date of purchase (YYYY-MM-DD)</li>
+                                    <li>transaction_amount: Purchase amount in dollars</li>
+                                    <li>items_purchased: Items purchased (comma separated)</li>
+                                    <li>phone_number: Customer's phone number (for SMS marketing)</li>
+                                    <li>customer_name: Customer's name (optional)</li>
+                                </ul>
+                                <button id="download-sample" class="text-indigo-600 hover:text-indigo-800">
+                                    <i class="fas fa-download mr-1"></i> Download sample CSV
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full md:w-1/2">
+                            <div class="bg-gray-50 rounded-lg p-6">
+                                <h3 class="text-xl font-semibold mb-4">Google Gemini API Integration</h3>
+                                <p class="text-gray-600 mb-4">This dashboard uses Google Gemini API to analyze large datasets efficiently. Configure your API key in the settings.</p>
+                                
+                                <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-4">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <i class="fas fa-info-circle text-blue-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm">Files are securely processed through Google Gemini's Files API with 2GB per file limit and 20GB total storage capacity.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <h4 class="font-semibold mt-6 mb-2">Advanced Analysis Capabilities:</h4>
+                                <ul class="text-sm text-gray-600 space-y-2 mb-6">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>Customer Lifetime Value (LTV) calculation based on purchase history</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>AI-powered churn prediction to identify at-risk customers</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>Purchase pattern analysis to identify customer preferences</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>Customer segmentation for targeted marketing</span>
+                                    </li>
+                                </ul>
+                                
+                                <div id="api-status" class="mb-4 p-4 bg-yellow-100 text-yellow-800 rounded-lg">
+                                    <div class="flex items-start">
+                                        <i class="fas fa-exclamation-triangle mt-1 mr-2"></i>
+                                        <div>
+                                            <p class="font-medium">API Key Not Configured</p>
+                                            <p class="text-sm">Please add your Google Gemini API key in Settings to enable data analysis.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button id="upload-btn" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                                    <span id="upload-btn-text">Upload and Analyze Data</span>
+                                    <span id="upload-spinner" class="loading ml-2 hidden"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Data Preview Section -->
+                <div id="data-preview" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+                    <h2 class="text-2xl font-bold mb-4">Data Preview</h2>
+                    <p class="mb-4 text-gray-600">Review your data before analysis. Showing first 10 rows:</p>
+                    
+                    <div class="sample-data-table">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr id="preview-headers"></tr>
+                            </thead>
+                            <tbody id="preview-data" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end space-x-4">
+                        <button id="cancel-upload" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button id="confirm-upload" class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700">
+                            Confirm and Process Data
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Processing Status Section -->
+                <div id="processing-status" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+                    <h2 class="text-2xl font-bold mb-4">Processing Your Data</h2>
+                    <div class="mb-6">
+                        <div class="relative pt-1">
+                            <div class="flex mb-2 items-center justify-between">
+                                <div>
+                                    <span id="process-step" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">
+                                        Uploading File...
+                                    </span>
+                                </div>
+                                <div class="text-right">
+                                    <span id="process-percentage" class="text-xs font-semibold inline-block text-indigo-600">
+                                        0%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
+                                <div id="process-bar" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500 w-0 transition-all duration-500"></div>
+                            </div>
+                        </div>
+                        <p id="process-message" class="text-sm text-gray-600">Your data is being uploaded to Google Gemini API for analysis. This may take several minutes for large files.</p>
+                    </div>
+                    
+                    <div id="process-details" class="space-y-3 mb-6">
+                        <div class="flex items-start">
+                            <div class="h-6 w-6 flex items-center justify-center rounded-full bg-gray-200 mr-3">
+                                <i id="step1-icon" class="fas fa-spinner fa-spin text-gray-500 text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium">File Upload</p>
+                                <p id="step1-status" class="text-sm text-gray-600">Uploading file to Google Gemini API...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="h-6 w-6 flex items-center justify-center rounded-full bg-gray-200 mr-3">
+                                <i id="step2-icon" class="fas fa-clock text-gray-500 text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium">Data Processing</p>
+                                <p id="step2-status" class="text-sm text-gray-600">Waiting to process data...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="h-6 w-6 flex items-center justify-center rounded-full bg-gray-200 mr-3">
+                                <i id="step3-icon" class="fas fa-clock text-gray-500 text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium">Advanced Analysis</p>
+                                <p id="step3-status" class="text-sm text-gray-600">Waiting to analyze customer behavior...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="h-6 w-6 flex items-center justify-center rounded-full bg-gray-200 mr-3">
+                                <i id="step4-icon" class="fas fa-clock text-gray-500 text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="font-medium">Preparing Results</p>
+                                <p id="step4-status" class="text-sm text-gray-600">Waiting to prepare dashboard...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="cancel-process" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboard-tab" class="tab-content">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold mb-2">Business Overview</h2>
+                    <p class="text-gray-600">Analyze your customer data and get actionable insights.</p>
+                </div>
+                
+                <!-- Key Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow-md p-6 dashboard-card">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-600 text-sm">Total Customers</p>
+                                <h3 class="text-3xl font-bold mt-1">248</h3>
+                                <p class="text-green-600 text-sm mt-2"><i class="fas fa-arrow-up mr-1"></i>12% vs last month</p>
+                            </div>
+                            <div class="bg-indigo-100 p-3 rounded-full">
+                                <i class="fas fa-users text-indigo-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-md p-6 dashboard-card">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-600 text-sm">Average LTV</p>
+                                <h3 class="text-3xl font-bold mt-1">$542</h3>
+                                <p class="text-green-600 text-sm mt-2"><i class="fas fa-arrow-up mr-1"></i>8% vs last month</p>
+                            </div>
+                            <div class="bg-green-100 p-3 rounded-full">
+                                <i class="fas fa-dollar-sign text-green-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-md p-6 dashboard-card">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-600 text-sm">Churn Risk</p>
+                                <h3 class="text-3xl font-bold mt-1">18%</h3>
+                                <p class="text-red-600 text-sm mt-2"><i class="fas fa-arrow-up mr-1"></i>3% vs last month</p>
+                            </div>
+                            <div class="bg-red-100 p-3 rounded-full">
+                                <i class="fas fa-user-minus text-red-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-md p-6 dashboard-card">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-600 text-sm">SMS Campaign ROI</p>
+                                <h3 class="text-3xl font-bold mt-1">327%</h3>
+                                <p class="text-green-600 text-sm mt-2"><i class="fas fa-arrow-up mr-1"></i>15% vs last month</p>
+                            </div>
+                            <div class="bg-purple-100 p-3 rounded-full">
+                                <i class="fas fa-comment-dollar text-purple-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <h3 class="text-lg font-semibold mb-4">Customer Lifetime Value Distribution</h3>
+                        <div class="h-80">
+                            <canvas id="ltv-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <h3 class="text-lg font-semibold mb-4">Customer Segmentation</h3>
+                        <div class="h-80">
+                            <canvas id="segment-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Purchase Patterns -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Popular Purchase Combinations</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items Combination</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Frequency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Order Value</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Segment</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">Pizza + Beer</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">42%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">$28.50</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">High Value</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">Pasta + Wine</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">38%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">$42.75</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">High Value</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">Burger + Fries + Soda</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">35%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">$18.95</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Medium Value</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">Salad + Iced Tea</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">22%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">$15.50</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Low Value</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">Dessert + Coffee</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">18%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">$12.75</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Medium Value</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Churn Risk Analysis -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">Churn Risk Analysis</h3>
+                        <button class="text-indigo-600 hover:text-indigo-800">
+                            <i class="fas fa-download mr-1"></i> Export List
+                        </button>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <div class="w-full h-4 bg-gray-200 rounded-full">
+                                <div class="h-4 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded-full" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-600">
+                            <span>Low Risk (0-25%)</span>
+                            <span>Medium Risk (26-70%)</span>
+                            <span>High Risk (71-100%)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Purchase</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Frequency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Churn Risk</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">JD</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">John Doe</div>
+                                                <div class="text-sm text-gray-500">+1 555-123-4567</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">45 days ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Monthly</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <span class="text-red-600 font-medium mr-2">85%</span>
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-red-600 h-2 rounded-full" style="width: 85%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">Send SMS</button>
+                                        <button class="text-gray-600 hover:text-gray-900">Details</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">AS</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Alice Smith</div>
+                                                <div class="text-sm text-gray-500">+1 555-987-6543</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">38 days ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Bi-weekly</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <span class="text-red-600 font-medium mr-2">78%</span>
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-red-600 h-2 rounded-full" style="width: 78%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">Send SMS</button>
+                                        <button class="text-gray-600 hover:text-gray-900">Details</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">RJ</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Robert Johnson</div>
+                                                <div class="text-sm text-gray-500">+1 555-789-0123</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">30 days ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Weekly</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <span class="text-yellow-600 font-medium mr-2">65%</span>
+                                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-yellow-500 h-2 rounded-full" style="width: 65%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">Send SMS</button>
+                                        <button class="text-gray-600 hover:text-gray-900">Details</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Customer Analysis Tab -->
+            <div id="customers-tab" class="tab-content">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold mb-2">Customer Analysis</h2>
+                    <p class="text-gray-600">Detailed insights into customer behavior and lifetime value.</p>
+                </div>
+                
+                <!-- Customer Segmentation Overview -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Customer Segmentation Overview</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-medium text-green-800">High Value Customers</h4>
+                                <span class="bg-green-200 text-green-800 text-xs font-medium px-2 py-1 rounded">82 Customers</span>
+                            </div>
+                            <div class="text-3xl font-bold text-green-700 mb-2">$842</div>
+                            <p class="text-sm text-green-700">Average LTV</p>
+                            <div class="mt-4">
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-600">Visit Frequency</span>
+                                    <span class="text-green-700 font-medium">Weekly</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Avg. Order Value</span>
+                                    <span class="text-green-700 font-medium">$42.50</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-medium text-blue-800">Medium Value Customers</h4>
+                                <span class="bg-blue-200 text-blue-800 text-xs font-medium px-2 py-1 rounded">124 Customers</span>
+                            </div>
+                            <div class="text-3xl font-bold text-blue-700 mb-2">$485</div>
+                            <p class="text-sm text-blue-700">Average LTV</p>
+                            <div class="mt-4">
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-600">Visit Frequency</span>
+                                    <span class="text-blue-700 font-medium">Bi-weekly</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Avg. Order Value</span>
+                                    <span class="text-blue-700 font-medium">$28.75</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <h4 class="font-medium text-yellow-800">Low Value Customers</h4>
+                                <span class="bg-yellow-200 text-yellow-800 text-xs font-medium px-2 py-1 rounded">42 Customers</span>
+                            </div>
+                            <div class="text-3xl font-bold text-yellow-700 mb-2">$195</div>
+                            <p class="text-sm text-yellow-700">Average LTV</p>
+                            <div class="mt-4">
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-600">Visit Frequency</span>
+                                    <span class="text-yellow-700 font-medium">Monthly</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600">Avg. Order Value</span>
+                                    <span class="text-yellow-700 font-medium">$15.25</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="h-80">
+                        <canvas id="customer-ltv-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Customer List Table -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Customer List</h3>
+                        <div class="flex items-center">
+                            <div class="relative mr-4">
+                                <input type="text" placeholder="Search customers..." class="border border-gray-300 rounded-lg px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <div class="absolute left-3 top-3 text-gray-400">
+                                    <i class="fas fa-search"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <select class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option>All Segments</option>
+                                    <option>High Value</option>
+                                    <option>Medium Value</option>
+                                    <option>Low Value</option>
+                                    <option>At Risk</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lifetime Value</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Segment</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Favorite Items</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">EB</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Emily Brown</div>
+                                                <div class="text-sm text-gray-500">+1 555-234-5678</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">$925</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">High Value</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Pasta, Wine, Tiramisu</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">3 days ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">View Profile</button>
+                                        <button class="text-indigo-600 hover:text-indigo-900">Send SMS</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">MW</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Michael Wilson</div>
+                                                <div class="text-sm text-gray-500">+1 555-876-5432</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">$768</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">High Value</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Steak, Beer, Fries</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">1 week ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">View Profile</button>
+                                        <button class="text-indigo-600 hover:text-indigo-900">Send SMS</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">SL</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Sarah Lee</div>
+                                                <div class="text-sm text-gray-500">+1 555-345-6789</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">$512</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Medium Value</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Salad, Iced Tea, Chicken</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">2 weeks ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">View Profile</button>
+                                        <button class="text-indigo-600 hover:text-indigo-900">Send SMS</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">DK</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">David Kim</div>
+                                                <div class="text-sm text-gray-500">+1 555-987-1234</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">$215</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Low Value</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Burger, Soda</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">1 month ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">View Profile</button>
+                                        <button class="text-indigo-600 hover:text-indigo-900">Send SMS</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 flex-shrink-0 bg-gray-200 rounded-full flex items-center justify-center">
+                                                <span class="font-medium text-gray-600">JT</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">Jessica Thompson</div>
+                                                <div class="text-sm text-gray-500">+1 555-456-7890</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium">$178</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">At Risk</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">Pizza, Salad</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">2 months ago</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button class="text-indigo-600 hover:text-indigo-900 mr-3">View Profile</button>
+                                        <button class="text-indigo-600 hover:text-indigo-900">Send SMS</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-6">
+                        <div class="text-sm text-gray-700">
+                            Showing <span class="font-medium">1</span> to <span class="font-medium">5</span> of <span class="font-medium">248</span> customers
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50" disabled>Previous</button>
+                            <button class="px-3 py-1 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700">1</button>
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">2</button>
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">3</button>
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">...</button>
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">25</button>
+                            <button class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Next</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Customer Preferences Analysis -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Customer Preferences Analysis</h3>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-medium mb-4">Popular Items by Customer Segment</h4>
+                            <div class="h-80">
+                                <canvas id="preferences-chart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h4 class="font-medium mb-4">Visiting Patterns by Day of Week</h4>
+                            <div class="h-80">
+                                <canvas id="visit-patterns-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMS Campaigns Tab -->
+            <div id="campaigns-tab" class="tab-content">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold mb-2">SMS Marketing Campaigns</h2>
+                    <p class="text-gray-600">Create and manage targeted SMS campaigns using Twilio integration.</p>
+                </div>
+                
+                <!-- Twilio Integration Status -->
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                Twilio API integration is not configured. Please add your Twilio credentials in the Settings page to enable SMS marketing.
+                            </p>
+                            <div class="mt-2">
+                                <button id="configure-twilio-btn" class="text-sm text-yellow-700 font-medium underline">Configure Now</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Campaign Creation -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Create New Campaign</h3>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <div class="mb-4">
+                                <label for="campaign-name" class="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+                                <input type="text" id="campaign-name" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Summer Special Discount">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="target-segment" class="block text-sm font-medium text-gray-700 mb-1">Target Customer Segment</label>
+                                <select id="target-segment" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Select a segment</option>
+                                    <option value="high-value">High Value Customers</option>
+                                    <option value="medium-value">Medium Value Customers</option>
+                                    <option value="low-value">Low Value Customers</option>
+                                    <option value="at-risk">At Risk Customers</option>
+                                    <option value="inactive">Inactive Customers (60+ days)</option>
+                                    <option value="custom">Custom Segment</option>
+                                </select>
+                            </div>
+                            
+                            <div id="custom-segment-builder" class="mb-4 hidden">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Custom Segment Filters</label>
+                                <div class="space-y-2">
+                                    <div class="flex items-center space-x-2">
+                                        <select class="border border-gray-300 rounded-md px-2 py-1 text-sm">
+                                            <option>Last Visit</option>
+                                            <option>LTV</option>
+                                            <option>Order Value</option>
+                                            <option>Favorite Item</option>
+                                        </select>
+                                        <select class="border border-gray-300 rounded-md px-2 py-1 text-sm">
+                                            <option>is greater than</option>
+                                            <option>is less than</option>
+                                            <option>is equal to</option>
+                                            <option>contains</option>
+                                        </select>
+                                        <input type="text" class="border border-gray-300 rounded-md px-2 py-1 text-sm" placeholder="Value">
+                                        <button class="text-gray-500 hover:text-gray-700">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button class="text-indigo-600 hover:text-indigo-800 text-sm mt-2">
+                                    <i class="fas fa-plus mr-1"></i> Add Filter
+                                </button>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="discount-type" class="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                                <select id="discount-type" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="percentage">Percentage Discount</option>
+                                    <option value="fixed">Fixed Amount Discount</option>
+                                    <option value="bogo">Buy One Get One Free</option>
+                                    <option value="freeside">Free Side Item</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="discount-value" class="block text-sm font-medium text-gray-700 mb-1">Discount Value</label>
+                                <div class="flex items-center">
+                                    <span class="absolute ml-3">%</span>
+                                    <input type="text" id="discount-value" class="w-full border border-gray-300 rounded-md px-3 py-2 pl-7 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="15">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="valid-until" class="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
+                                <input type="date" id="valid-until" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="mb-4">
+                                <label for="sms-template" class="block text-sm font-medium text-gray-700 mb-1">SMS Message Template</label>
+                                <div class="mb-2 text-xs text-gray-500">
+                                    Use {CUSTOMER_NAME}, {DISCOUNT}, {FAVORITE_ITEM}, {VALID_UNTIL} as dynamic variables
+                                </div>
+                                <textarea id="sms-template" rows="5" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Hi {CUSTOMER_NAME}! We miss you at [Your Restaurant]. Enjoy {DISCOUNT}% off your favorite {FAVORITE_ITEM} when you visit us before {VALID_UNTIL}. Show this SMS to redeem."></textarea>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <span id="sms-character-count">0</span>/160 characters (standard SMS length)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-6">
+                                <h4 class="font-medium text-sm mb-2">Message Preview</h4>
+                                <div class="bg-gray-100 p-4 rounded-lg border border-gray-200">
+                                    <div class="flex items-start">
+                                        <div class="bg-indigo-100 rounded-full h-8 w-8 flex items-center justify-center text-indigo-500 mr-3">
+                                            <i class="fas fa-utensils"></i>
+                                        </div>
+                                        <div class="bg-indigo-100 rounded-2xl p-3 text-gray-800 text-sm max-w-xs">
+                                            <div id="sms-preview">Hi Emily! We miss you at [Your Restaurant]. Enjoy 15% off your favorite Pasta when you visit us before 09/30/2023. Show this SMS to redeem.</div>
+                                            <div class="text-right mt-1 text-xs text-gray-500">Just now</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Summary</label>
+                                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-sm text-gray-600">Target Recipients:</span>
+                                        <span class="text-sm font-medium">82 customers</span>
+                                    </div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-sm text-gray-600">Estimated Cost:</span>
+                                        <span class="text-sm font-medium">$6.15 (Twilio rates)</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-sm text-gray-600">Estimated Response Rate:</span>
+                                        <span class="text-sm font-medium">25-30%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-end space-x-4">
+                                    <button class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                                        Save Draft
+                                    </button>
+                                    <button class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700">
+                                        <i class="fas fa-paper-plane mr-2"></i> Launch Campaign
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Previous Campaigns -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Previous Campaigns</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campaign</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Segment</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipients</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">Summer Special</div>
+                                        <div class="text-xs text-gray-500">20% off any pasta dish</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">Jun 15, 2023</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">High Value</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">78</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm">42 (54%)</div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                            <div class="bg-green-600 h-2 rounded-full" style="width: 54%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">$1,680</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-green-600 font-medium">385%</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">Win-Back Campaign</div>
+                                        <div class="text-xs text-gray-500">25% off entire order</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">May 03, 2023</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">At Risk</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">45</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm">18 (40%)</div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                            <div class="bg-green-600 h-2 rounded-full" style="width: 40%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">$920</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-green-600 font-medium">270%</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">Birthday Special</div>
+                                        <div class="text-xs text-gray-500">Free dessert with meal</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">Apr 12, 2023</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">All Customers</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">32</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm">24 (75%)</div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                            <div class="bg-green-600 h-2 rounded-full" style="width: 75%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">$1,250</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-green-600 font-medium">425%</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+                <div class="flex justify-between items-center border-b px-6 py-4">
+                    <h3 class="text-xl font-bold">Settings</h3>
+                    <button id="close-settings" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="p-6">
+                    <div class="mb-6">
+                        <h4 class="text-lg font-semibold mb-4">API Integrations</h4>
+                        
+                        <!-- Google Gemini API Settings -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Google Gemini API Key</label>
+                            <div class="flex">
+                                <input type="password" id="gemini-api-key" class="flex-grow border border-gray-300 rounded-l-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter your Google Gemini API Key">
+                                <button id="toggle-gemini-key" class="bg-gray-100 border border-gray-300 border-l-0 px-3 rounded-r-md hover:bg-gray-200">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-sm text-gray-500">
+                                Your API key is stored locally in your browser and never sent to our servers.
+                            </p>
+                        </div>
+                        
+                        <!-- Twilio API Settings -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Twilio Account SID</label>
+                            <input type="text" id="twilio-sid" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter your Twilio Account SID">
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Twilio Auth Token</label>
+                            <div class="flex">
+                                <input type="password" id="twilio-token" class="flex-grow border border-gray-300 rounded-l-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter your Twilio Auth Token">
+                                <button id="toggle-twilio-token" class="bg-gray-100 border border-gray-300 border-l-0 px-3 rounded-r-md hover:bg-gray-200">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Twilio Phone Number</label>
+                            <input type="text" id="twilio-phone" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter your Twilio Phone Number (+15551234567)">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h4 class="text-lg font-semibold mb-4">Restaurant Information</h4>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
+                            <input type="text" id="restaurant-name" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Your Restaurant Name">
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                <select id="currency" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
+                                    <option value="CAD">CAD ($)</option>
+                                    <option value="AUD">AUD ($)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                                <select id="timezone" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="America/New_York">Eastern Time (ET)</option>
+                                    <option value="America/Chicago">Central Time (CT)</option>
+                                    <option value="America/Denver">Mountain Time (MT)</option>
+                                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                                    <option value="Europe/London">London (GMT)</option>
+                                    <option value="Europe/Paris">Paris (CET)</option>
+                                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold mb-4">Data & Privacy</h4>
+                        
+                        <div class="mb-4">
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5">
+                                    <input id="analytics-consent" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                </div>
+                                <div class="ml-3 text-sm">
+                                    <label for="analytics-consent" class="font-medium text-gray-700">Enable Usage Analytics</label>
+                                    <p class="text-gray-500">Allow anonymous usage data collection to help us improve the dashboard.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5">
+                                    <input id="marketing-consent" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                </div>
+                                <div class="ml-3 text-sm">
+                                    <label for="marketing-consent" class="font-medium text-gray-700">Receive Product Updates</label>
+                                    <p class="text-gray-500">Get occasional emails about new features and improvements.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 px-6 py-4 flex justify-end space-x-4 rounded-b-lg">
+                    <button id="cancel-settings" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button id="save-settings" class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700">
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Help Modal -->
+        <div id="help-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+                <div class="flex justify-between items-center border-b px-6 py-4">
+                    <h3 class="text-xl font-bold">Help & Documentation</h3>
+                    <button id="close-help" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="p-6">
+                    <div class="mb-8">
+                        <h4 class="text-lg font-semibold mb-2">Getting Started</h4>
+                        <p class="text-gray-600 mb-4">This dashboard allows you to analyze your restaurant's customer data, identify valuable customers, predict churn, and send personalized SMS marketing campaigns. Follow these steps to get started:</p>
+                        
+                        <ol class="list-decimal pl-5 space-y-2 text-gray-600">
+                            <li>Configure your API keys in the Settings section (Google Gemini API for data analysis and Twilio for SMS marketing)</li>
+                            <li>Upload your customer purchase dataset in CSV format</li>
+                            <li>Explore the dashboard to view customer analytics and insights</li>
+                            <li>Create targeted SMS marketing campaigns based on customer segments</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <h4 class="text-lg font-semibold mb-2">Data Format Requirements</h4>
+                        <p class="text-gray-600 mb-2">Your CSV file should include the following columns:</p>
+                        
+                        <table class="min-w-full divide-y divide-gray-200 mb-4">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Column Name</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Format</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">customer_id</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Unique identifier for each customer</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Text or Number</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">customer_name</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Customer's full name</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Text</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">phone_number</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Customer's phone number for SMS</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">E.164 format (+1XXXXXXXXXX)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">transaction_date</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Date of purchase</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">YYYY-MM-DD</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">transaction_amount</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Purchase amount in dollars</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Number (no $ symbol)</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">items_purchased</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Items purchased in transaction</td>
+                                    <td class="px-4 py-2 whitespace-nowrap text-sm">Comma-separated text</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <button id="download-sample-help" class="text-indigo-600 hover:text-indigo-800">
+                            <i class="fas fa-download mr-1"></i> Download sample CSV template
+                        </button>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <h4 class="text-lg font-semibold mb-2">API Configuration</h4>
+                        
+                        <div class="mb-4">
+                            <h5 class="font-medium mb-1">Google Gemini API</h5>
+                            <p class="text-gray-600 mb-2">The Google Gemini API is used for analyzing large customer datasets. To get your API key:</p>
+                            <ol class="list-decimal pl-5 space-y-1 text-gray-600 text-sm">
+                                <li>Go to the <a href="https://ai.google.dev/" class="text-indigo-600 hover:underline" target="_blank">Google AI Studio</a></li>
+                                <li>Create or sign in to your account</li>
+                                <li>Navigate to the API keys section</li>
+                                <li>Create a new API key</li>
+                                <li>Copy the key and paste it in the Settings section of this dashboard</li>
+                            </ol>
+                        </div>
+                        
+                        <div>
+                            <h5 class="font-medium mb-1">Twilio SMS API</h5>
+                            <p class="text-gray-600 mb-2">Twilio is used for sending personalized SMS messages to customers. To set up Twilio:</p>
+                            <ol class="list-decimal pl-5 space-y-1 text-gray-600 text-sm">
+                                <li>Sign up for a <a href="https://www.twilio.com/try-twilio" class="text-indigo-600 hover:underline" target="_blank">Twilio account</a></li>
+                                <li>Purchase a Twilio phone number</li>
+                                <li>Copy your Account SID and Auth Token from the Twilio dashboard</li>
+                                <li>Enter these credentials in the Settings section of this dashboard</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold mb-2">FAQ</h4>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <h5 class="font-medium mb-1">How is customer LTV calculated?</h5>
+                                <p class="text-gray-600 text-sm">Customer Lifetime Value (LTV) is calculated based on historical purchase data, frequency of visits, average order value, and predicted future purchases. The Google Gemini API analyzes these factors to provide an accurate LTV estimation.</p>
+                            </div>
+                            
+                            <div>
+                                <h5 class="font-medium mb-1">How does churn prediction work?</h5>
+                                <p class="text-gray-600 text-sm">The churn prediction model analyzes customer behavior patterns, including recency of visits, frequency, purchase amounts, and items purchased. It identifies customers showing signs of declining engagement and assigns a risk score indicating the likelihood of them not returning.</p>
+                            </div>
+                            
+                            <div>
+                                <h5 class="font-medium mb-1">Is my customer data secure?</h5>
+                                <p class="text-gray-600 text-sm">Yes. Your data is processed securely using the Google Gemini API with enterprise-grade security. API keys are stored locally in your browser and never shared with any third party. All data transfers use secure HTTPS connections.</p>
+                            </div>
+                            
+                            <div>
+                                <h5 class="font-medium mb-1">Can I export the analysis results?</h5>
+                                <p class="text-gray-600 text-sm">Yes, you can export customer lists, segment data, and campaign results as CSV files using the export buttons throughout the dashboard.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 px-6 py-4 flex justify-end rounded-b-lg">
+                    <button id="close-help-btn" class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700">
+                        Got it
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-6">
+            <div class="container mx-auto px-4">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="mb-4 md:mb-0">
+                        <div class="flex items-center">
+                            <i class="fas fa-utensils text-xl mr-2"></i>
+                            <h2 class="text-xl font-bold">RestaurantIQ Analytics</h2>
+                        </div>
+                        <p class="text-gray-400 text-sm mt-1">Powerful customer analytics for restaurants</p>
+                    </div>
+                    
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t border-gray-700 flex flex-col md:flex-row justify-between">
+                    <div class="text-sm text-gray-400">
+                        &copy; 2023 RestaurantIQ Analytics. All rights reserved.
+                    </div>
+                    
+                    <div class="mt-4 md:mt-0">
+                        <ul class="flex flex-wrap space-x-4 text-sm text-gray-400">
+                            <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+                            <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+                            <li><a href="#" class="hover:text-white">Contact</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Charts initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab Navigation
+            const tabLinks = document.querySelectorAll('.tab-link');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // Remove active class from all tabs
+                    tabLinks.forEach(el => el.classList.remove('active', 'bg-white', 'text-indigo-700'));
+                    tabLinks.forEach(el => el.classList.add('bg-gray-200', 'text-gray-700'));
+                    
+                    // Add active class to clicked tab
+                    link.classList.add('active', 'bg-white', 'text-indigo-700');
+                    link.classList.remove('bg-gray-200', 'text-gray-700');
+                    
+                    // Hide all tab contents
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Show the corresponding tab content
+                    const tabId = link.getAttribute('data-tab');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+            
+            // File Upload Handling
+            const fileUpload = document.getElementById('file-upload');
+            const fileInfo = document.getElementById('file-info');
+            const fileName = document.getElementById('file-name');
+            const fileSize = document.getElementById('file-size');
+            const uploadBtn = document.getElementById('upload-btn');
+            const dataPreview = document.getElementById('data-preview');
+            const processingStatus = document.getElementById('processing-status');
+            
+            // Disable upload button if API is not configured
+            const apiStatus = document.getElementById('api-status');
+            
+            fileUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    fileName.textContent = file.name;
+                    fileSize.textContent = formatFileSize(file.size);
+                    fileInfo.classList.remove('hidden');
+                    
+                    // Enable upload button if a file is selected (we'd normally check for API key too)
+                    uploadBtn.disabled = false;
+                }
+            });
+            
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' bytes';
+                else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                else return (bytes / 1048576).toFixed(1) + ' MB';
+            }
+            
+            // Upload Button Handler
+            uploadBtn.addEventListener('click', function() {
+                // Show data preview (in a real app, we'd parse the CSV first)
+                dataPreview.classList.remove('hidden');
+                
+                // Populate preview with sample data
+                populatePreviewTable();
+            });
+            
+            // Confirm Upload Button
+            document.getElementById('confirm-upload').addEventListener('click', function() {
+                dataPreview.classList.add('hidden');
+                processingStatus.classList.remove('hidden');
+                
+                // Simulate processing with progress updates
+                simulateProcessing();
+            });
+            
+            // Cancel buttons
+            document.getElementById('cancel-upload').addEventListener('click', function() {
+                dataPreview.classList.add('hidden');
+            });
+            
+            document.getElementById('cancel-process').addEventListener('click', function() {
+                processingStatus.classList.add('hidden');
+            });
+            
+            // Modal Handlers
+            const settingsModal = document.getElementById('settings-modal');
+            const helpModal = document.getElementById('help-modal');
+            
+            document.getElementById('settings-btn').addEventListener('click', function() {
+                settingsModal.classList.remove('hidden');
+                settingsModal.classList.add('flex');
+            });
+            
+            document.getElementById('help-btn').addEventListener('click', function() {
+                helpModal.classList.remove('hidden');
+                helpModal.classList.add('flex');
+            });
+            
+            document.getElementById('close-settings').addEventListener('click', function() {
+                settingsModal.classList.add('hidden');
+                settingsModal.classList.remove('flex');
+            });
+            
+            document.getElementById('cancel-settings').addEventListener('click', function() {
+                settingsModal.classList.add('hidden');
+                settingsModal.classList.remove('flex');
+            });
+            
+            document.getElementById('close-help').addEventListener('click', function() {
+                helpModal.classList.add('hidden');
+                helpModal.classList.remove('flex');
+            });
+            
+            document.getElementById('close-help-btn').addEventListener('click', function() {
+                helpModal.classList.add('hidden');
+                helpModal.classList.remove('flex');
+            });
+            
+            document.getElementById('configure-twilio-btn').addEventListener('click', function() {
+                // Hide all tab contents
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Remove active class from all tabs
+                tabLinks.forEach(el => el.classList.remove('active', 'bg-white', 'text-indigo-700'));
+                tabLinks.forEach(el => el.classList.add('bg-gray-200', 'text-gray-700'));
+                
+                // Open settings modal
+                settingsModal.classList.remove('hidden');
+                settingsModal.classList.add('flex');
+            });
+            
+            // Toggle password visibility
+            document.getElementById('toggle-gemini-key').addEventListener('click', function() {
+                const apiKeyInput = document.getElementById('gemini-api-key');
+                const type = apiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                apiKeyInput.setAttribute('type', type);
+                this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+            });
+            
+            document.getElementById('toggle-twilio-token').addEventListener('click', function() {
+                const tokenInput = document.getElementById('twilio-token');
+                const type = tokenInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                tokenInput.setAttribute('type', type);
+                this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+            });
+            
+            // Save settings
+            document.getElementById('save-settings').addEventListener('click', function() {
+                const geminiKey = document.getElementById('gemini-api-key').value;
+                const twilioSid = document.getElementById('twilio-sid').value;
+                const twilioToken = document.getElementById('twilio-token').value;
+                const twilioPhone = document.getElementById('twilio-phone').value;
+                
+                // Save to localStorage (in a real app you might use more secure methods)
+                if (geminiKey) {
+                    localStorage.setItem('geminiApiKey', geminiKey);
+                    
+                    // Update API status and enable upload button
+                    apiStatus.innerHTML = `
+                        <div class="flex items-start">
+                            <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                            <div>
+                                <p class="font-medium text-green-700">API Key Configured</p>
+                                <p class="text-sm text-green-600">Google Gemini API is ready to use.</p>
+                            </div>
+                        </div>
+                    `;
+                    apiStatus.classList.remove('bg-yellow-100', 'text-yellow-800');
+                    apiStatus.classList.add('bg-green-100', 'text-green-800');
+                    
+                    uploadBtn.disabled = false;
+                }
+                
+                if (twilioSid && twilioToken && twilioPhone) {
+                    localStorage.setItem('twilioSid', twilioSid);
+                    localStorage.setItem('twilioToken', twilioToken);
+                    localStorage.setItem('twilioPhone', twilioPhone);
+                    
+                    // Update Twilio status in the campaigns tab
+                    const twilioStatus = document.querySelector('#campaigns-tab > div:first-child + div');
+                    twilioStatus.innerHTML = `
+                        <div class="flex items-start">
+                            <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                            <div>
+                                <p class="font-medium text-green-700">Twilio API Configured</p>
+                                <p class="text-sm text-green-600">You can now send SMS campaigns to your customers.</p>
+                            </div>
+                        </div>
+                    `;
+                    twilioStatus.classList.remove('bg-yellow-50', 'border-yellow-400');
+                    twilioStatus.classList.add('bg-green-50', 'border-green-400');
+                }
+                
+                const restaurantName = document.getElementById('restaurant-name').value;
+                if (restaurantName) {
+                    localStorage.setItem('restaurantName', restaurantName);
+                    document.querySelector('header h1').textContent = restaurantName + ' Analytics';
+                }
+                
+                // Close modal
+                settingsModal.classList.add('hidden');
+                settingsModal.classList.remove('flex');
+            });
+            
+            // Check for saved settings on load
+            const savedGeminiKey = localStorage.getItem('geminiApiKey');
+            if (savedGeminiKey) {
+                document.getElementById('gemini-api-key').value = savedGeminiKey;
+                
+                apiStatus.innerHTML = `
+                    <div class="flex items-start">
+                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                        <div>
+                            <p class="font-medium text-green-700">API Key Configured</p>
+                            <p class="text-sm text-green-600">Google Gemini API is ready to use.</p>
+                        </div>
+                    </div>
+                `;
+                apiStatus.classList.remove('bg-yellow-100', 'text-yellow-800');
+                apiStatus.classList.add('bg-green-100', 'text-green-800');
+                
+                uploadBtn.disabled = false;
+            }
+            
+            const savedTwilioSid = localStorage.getItem('twilioSid');
+            const savedTwilioToken = localStorage.getItem('twilioToken');
+            const savedTwilioPhone = localStorage.getItem('twilioPhone');
+            
+            if (savedTwilioSid && savedTwilioToken && savedTwilioPhone) {
+                document.getElementById('twilio-sid').value = savedTwilioSid;
+                document.getElementById('twilio-token').value = savedTwilioToken;
+                document.getElementById('twilio-phone').value = savedTwilioPhone;
+                
+                const twilioStatus = document.querySelector('#campaigns-tab > div:first-child + div');
+                twilioStatus.innerHTML = `
+                    <div class="flex items-start">
+                        <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                        <div>
+                            <p class="font-medium text-green-700">Twilio API Configured</p>
+                            <p class="text-sm text-green-600">You can now send SMS campaigns to your customers.</p>
+                        </div>
+                    </div>
+                `;
+                twilioStatus.classList.remove('bg-yellow-50', 'border-yellow-400');
+                twilioStatus.classList.add('bg-green-50', 'border-green-400');
+            }
+            
+            const savedRestaurantName = localStorage.getItem('restaurantName');
+            if (savedRestaurantName) {
+                document.getElementById('restaurant-name').value = savedRestaurantName;
+                document.querySelector('header h1').textContent = savedRestaurantName + ' Analytics';
+            }
+            
+            // SMS Template Character Counter
+            const smsTemplate = document.getElementById('sms-template');
+            const smsCharacterCount = document.getElementById('sms-character-count');
+            const smsPreview = document.getElementById('sms-preview');
+            
+            smsTemplate.addEventListener('input', function() {
+                const count = this.value.length;
+                smsCharacterCount.textContent = count;
+                
+                // Update preview
+                let previewText = this.value;
+                if (!previewText) {
+                    previewText = "Hi Emily! We miss you at [Your Restaurant]. Enjoy 15% off your favorite Pasta when you visit us before 09/30/2023. Show this SMS to redeem.";
+                } else {
+                    previewText = previewText.replace('{CUSTOMER_NAME}', 'Emily');
+                    previewText = previewText.replace('{DISCOUNT}', '15');
+                    previewText = previewText.replace('{FAVORITE_ITEM}', 'Pasta');
+                    previewText = previewText.replace('{VALID_UNTIL}', '09/30/2023');
+                }
+                smsPreview.textContent = previewText;
+            });
+            
+            // Custom segment builder
+            const targetSegment = document.getElementById('target-segment');
+            const customSegmentBuilder = document.getElementById('custom-segment-builder');
+            
+            targetSegment.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    customSegmentBuilder.classList.remove('hidden');
+                } else {
+                    customSegmentBuilder.classList.add('hidden');
+                }
+            });
+
+            // Initialize Charts
+            initCharts();
+            
+            // Download sample CSV
+            document.getElementById('download-sample').addEventListener('click', function(e) {
+                e.preventDefault();
+                downloadSampleCSV();
+            });
+            
+            document.getElementById('download-sample-help').addEventListener('click', function(e) {
+                e.preventDefault();
+                downloadSampleCSV();
+            });
+        });
+
+        // Function to populate preview table with sample data
+        function populatePreviewTable() {
+            const headers = ['customer_id', 'customer_name', 'phone_number', 'transaction_date', 'transaction_amount', 'items_purchased'];
+            const previewData = [
+                ['C1001', 'John Smith', '+15551234567', '2023-06-15', '42.50', 'Pizza, Beer, Salad'],
+                ['C1001', 'John Smith', '+15551234567', '2023-05-22', '38.75', 'Pasta, Wine'],
+                ['C1002', 'Sarah Johnson', '+15559876543', '2023-06-10', '65.20', 'Steak, Wine, Dessert'],
+                ['C1003', 'Michael Brown', '+15552345678', '2023-06-05', '27.80', 'Burger, Fries, Soda'],
+                ['C1002', 'Sarah Johnson', '+15559876543', '2023-05-15', '32.40', 'Salad, Sandwich, Iced Tea'],
+                ['C1004', 'Emily Davis', '+15558765432', '2023-06-12', '78.90', 'Seafood Platter, Wine, Dessert'],
+                ['C1003', 'Michael Brown', '+15552345678', '2023-05-20', '45.60', 'Pizza, Wings, Soda'],
+                ['C1005', 'Robert Wilson', '+15553456789', '2023-06-08', '22.30', 'Salad, Soup, Coffee'],
+                ['C1004', 'Emily Davis', '+15558765432', '2023-05-28', '54.75', 'Pasta, Garlic Bread, Wine'],
+                ['C1001', 'John Smith', '+15551234567', '2023-04-30', '31.25', 'Sandwich, Fries, Beer']
+            ];
+            
+            // Populate headers
+            const headerRow = document.getElementById('preview-headers');
+            headerRow.innerHTML = '';
+            headers.forEach(header => {
+                headerRow.innerHTML += `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`;
+            });
+            
+            // Populate data
+            const dataBody = document.getElementById('preview-data');
+            dataBody.innerHTML = '';
+            previewData.forEach(row => {
+                let rowHtml = '<tr>';
+                row.forEach(cell => {
+                    rowHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cell}</td>`;
+                });
+                rowHtml += '</tr>';
+                dataBody.innerHTML += rowHtml;
+            });
+        }
+
+        // Function to simulate processing with progress updates
+        function simulateProcessing() {
+            const processBar = document.getElementById('process-bar');
+            const processPercentage = document.getElementById('process-percentage');
+            const processStep = document.getElementById('process-step');
+            const processMessage = document.getElementById('process-message');
+            
+            // Step 1: Uploading file
+            updateProcessStep('Uploading File...', 'Uploading file to Google Gemini API for analysis. This may take several minutes for large files.', 0);
+            
+            // Simulate progress
+            let progress = 0;
+            
+            const interval = setInterval(() => {
+                progress += 5;
+                processBar.style.width = `${progress}%`;
+                processPercentage.textContent = `${progress}%`;
+                
+                if (progress === 25) {
+                    // Step 2: Data Processing
+                    updateProcessStep('Processing Data', 'Analyzing customer purchase patterns and transaction history.', 25);
+                    updateStepIcon(1, 'check', 'green');
+                    updateStepIcon(2, 'spinner fa-spin', 'gray');
+                } else if (progress === 50) {
+                    // Step 3: Advanced Analysis
+                    updateProcessStep('Advanced Analysis', 'Calculating customer LTV and churn risk scores.', 50);
+                    updateStepIcon(2, 'check', 'green');
+                    updateStepIcon(3, 'spinner fa-spin', 'gray');
+                } else if (progress === 75) {
+                    // Step 4: Preparing Results
+                    updateProcessStep('Preparing Results', 'Generating visualizations and preparing dashboard.', 75);
+                    updateStepIcon(3, 'check', 'green');
+                    updateStepIcon(4, 'spinner fa-spin', 'gray');
+                } else if (progress === 100) {
+                    // Complete
+                    updateProcessStep('Complete', 'Analysis complete. Redirecting to dashboard.', 100);
+                    updateStepIcon(4, 'check', 'green');
+                    
+                    clearInterval(interval);
+                    
+                    // Redirect to dashboard tab after a short delay
+                    setTimeout(() => {
+                        document.getElementById('processing-status').classList.add('hidden');
+                        
+                        // Click on dashboard tab
+                        document.querySelector('.tab-link[data-tab="dashboard"]').click();
+                    }, 1500);
+                }
+            }, 800);
+        }
+
+        function updateProcessStep(step, message, progress) {
+            document.getElementById('process-step').textContent = step;
+            document.getElementById('process-message').textContent = message;
+            document.getElementById('process-bar').style.width = `${progress}%`;
+            document.getElementById('process-percentage').textContent = `${progress}%`;
+        }
+
+        function updateStepIcon(stepNum, icon, color) {
+            const stepIcon = document.getElementById(`step${stepNum}-icon`);
+            stepIcon.className = `fas fa-${icon} text-${color}-500 text-sm`;
+            
+            // Also update the background color of the circle
+            const circle = stepIcon.parentElement;
+            if (color === 'green') {
+                circle.classList.remove('bg-gray-200');
+                circle.classList.add('bg-green-200');
+            }
+        }
+
+        // Function to initialize charts
+        function initCharts() {
+            // LTV Chart
+            const ltvChart = new Chart(document.getElementById('ltv-chart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['$0-100', '$101-200', '$201-300', '$301-400', '$401-500', '$501-600', '$601-700', '$701-800', '$801-900', '$901+'],
+                    datasets: [{
+                        label: 'Number of Customers',
+                        data: [15, 28, 42, 55, 40, 28, 19, 11, 6, 4],
+                        backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                        borderColor: 'rgba(99, 102, 241, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Customer Lifetime Value Distribution',
+                            font: { size: 14 }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Customers'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Lifetime Value ($)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Segment Chart
+            const segmentChart = new Chart(document.getElementById('segment-chart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Value', 'Medium Value', 'Low Value', 'At Risk'],
+                    datasets: [{
+                        data: [82, 124, 42, 45],
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.7)',
+                            'rgba(59, 130, 246, 0.7)',
+                            'rgba(234, 179, 8, 0.7)',
+                            'rgba(239, 68, 68, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(34, 197, 94, 1)',
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(234, 179, 8, 1)',
+                            'rgba(239, 68, 68, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Customer Segmentation',
+                            font: { size: 14 }
+                        },
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+            
+            // Customer LTV Chart
+            const customerLtvChart = new Chart(document.getElementById('customer-ltv-chart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [
+                        {
+                            label: 'High Value',
+                            data: [650, 675, 720, 760, 790, 842],
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Medium Value',
+                            data: [420, 435, 450, 465, 475, 485],
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Low Value',
+                            data: [150, 160, 168, 175, 185, 195],
+                            borderColor: 'rgba(234, 179, 8, 1)',
+                            backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'LTV Trend by Customer Segment',
+                            font: { size: 14 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Average LTV ($)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Preferences Chart
+            const preferencesChart = new Chart(document.getElementById('preferences-chart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Pizza', 'Pasta', 'Steak', 'Burger', 'Salad', 'Dessert'],
+                    datasets: [
+                        {
+                            label: 'High Value',
+                            data: [35, 62, 58, 40, 28, 45],
+                            backgroundColor: 'rgba(34, 197, 94, 0.7)'
+                        },
+                        {
+                            label: 'Medium Value',
+                            data: [48, 42, 30, 52, 35, 38],
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)'
+                        },
+                        {
+                            label: 'Low Value',
+                            data: [28, 25, 18, 35, 42, 22],
+                            backgroundColor: 'rgba(234, 179, 8, 0.7)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Popular Items by Customer Segment',
+                            font: { size: 14 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Order Frequency (%)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Visit Patterns Chart
+            const visitPatternsChart = new Chart(document.getElementById('visit-patterns-chart').getContext('2d'), {
+                type: 'radar',
+                data: {
+                    labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                    datasets: [
+                        {
+                            label: 'High Value',
+                            data: [25, 30, 35, 45, 80, 90, 75],
+                            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            pointBackgroundColor: 'rgba(34, 197, 94, 1)'
+                        },
+                        {
+                            label: 'Medium Value',
+                            data: [35, 40, 45, 55, 70, 75, 60],
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            pointBackgroundColor: 'rgba(59, 130, 246, 1)'
+                        },
+                        {
+                            label: 'Low Value',
+                            data: [40, 45, 50, 45, 55, 65, 50],
+                            backgroundColor: 'rgba(234, 179, 8, 0.2)',
+                            borderColor: 'rgba(234, 179, 8, 1)',
+                            pointBackgroundColor: 'rgba(234, 179, 8, 1)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Visit Patterns by Day of Week',
+                            font: { size: 14 }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to download sample CSV
+        function downloadSampleCSV() {
+            const csvContent = `customer_id,customer_name,phone_number,transaction_date,transaction_amount,items_purchased
+C1001,John Smith,+15551234567,2023-06-15,42.50,"Pizza, Beer, Salad"
+C1001,John Smith,+15551234567,2023-05-22,38.75,"Pasta, Wine"
+C1002,Sarah Johnson,+15559876543,2023-06-10,65.20,"Steak, Wine, Dessert"
+C1003,Michael Brown,+15552345678,2023-06-05,27.80,"Burger, Fries, Soda"
+C1002,Sarah Johnson,+15559876543,2023-05-15,32.40,"Salad, Sandwich, Iced Tea"
+C1004,Emily Davis,+15558765432,2023-06-12,78.90,"Seafood Platter, Wine, Dessert"
+C1003,Michael Brown,+15552345678,2023-05-20,45.60,"Pizza, Wings, Soda"
+C1005,Robert Wilson,+15553456789,2023-06-08,22.30,"Salad, Soup, Coffee"
+C1004,Emily Davis,+15558765432,2023-05-28,54.75,"Pasta, Garlic Bread, Wine"
+C1001,John Smith,+15551234567,2023-04-30,31.25,"Sandwich, Fries, Beer"`;
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', 'restaurant_customer_data_sample.csv');
+            link.click();
+        }
+    </script>
+</body>
+</html>
