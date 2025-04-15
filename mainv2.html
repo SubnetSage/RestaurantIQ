@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RestaurantIQ Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.6.2/dist/sql-wasm.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .auth-container {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .main-container {
+            display: none;
+            padding: 1rem;
+            margin: 0 auto;
+            max-width: 1200px;
+        }
+        .nav-item {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+        }
+        .nav-item:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        .nav-item.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .section {
+            display: none;
+            padding: 1.5rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        .section.active {
+            display: block;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #e5e7eb;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #4b5563;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .badge-danger {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-bottom: 1.5rem;
+        }
+        .progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-value {
+            height: 100%;
+            border-radius: 4px;
+        }
+        .drop-zone {
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .drop-zone:hover {
+            border-color: #3b82f6;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background-color: #f9fafb;
+            font-weight: 600;
+        }
+        .btn-action {
+            padding: 0.5rem;
+            border-radius: 4px;
+            background-color: #f3f4f6;
+            color: #4b5563;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background-color: #e5e7eb;
+        }
+        .segment-card {
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .segment-high {
+            background-color: #dbeafe;
+        }
+        .segment-medium {
+            background-color: #e0f2fe;
+        }
+        .segment-low {
+            background-color: #f0f9ff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Container -->
+    <div id="auth-container" class="auth-container">
+        <div id="login-form">
+            <h2 class="text-2xl font-bold mb-6 text-center">Login to RestaurantIQ</h2>
+            <div class="mb-4">
+                <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" id="login-email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your email">
+            </div>
+            <div class="mb-6">
+                <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" id="login-password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your password">
+            </div>
+            <button id="login-button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">Login</button>
+            <p class="text-center mt-4 text-sm text-gray-600">Don't have an account? <a href="#" id="show-register" class="text-blue-600 hover:underline">Register</a></p>
+            <div id="login-error" class="mt-4 text-red-500 text-sm text-center hidden"></div>
+        </div>
+
+        <div id="register-form" class="hidden">
+            <h2 class="text-2xl font-bold mb-6 text-center">Create an Account</h2>
+            <div class="mb-4">
+                <label for="register-name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input type="text" id="register-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your full name">
+            </div>
+            <div class="mb-4">
+                <label for="register-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" id="register-email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your email">
+            </div>
+            <div class="mb-4">
+                <label for="register-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" id="register-password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Create a password">
+            </div>
+            <div class="mb-6">
+                <label for="register-confirm" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input type="password" id="register-confirm" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Confirm your password">
+            </div>
+            <button id="register-button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">Register</button>
+            <p class="text-center mt-4 text-sm text-gray-600">Already have an account? <a href="#" id="show-login" class="text-blue-600 hover:underline">Login</a></p>
+            <div id="register-error" class="mt-4 text-red-500 text-sm text-center hidden"></div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="main-container" class="main-container">
+        <!-- Header -->
+        <header class="flex justify-between items-center py-4 mb-6 border-b">
+            <div class="flex items-center">
+                <h1 class="text-2xl font-bold text-blue-700">RestaurantIQ Analytics</h1>
+            </div>
+            <div class="flex items-center">
+                <span id="user-name" class="mr-4"></span>
+                <button id="logout-button" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm transition-colors">Logout</button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-white rounded-lg shadow-sm mb-6">
+            <ul class="flex flex-wrap">
+                <li class="nav-item active" data-target="upload-section">
+                    <i class="fas fa-upload mr-2"></i> Upload Data
+                </li>
+                <li class="nav-item" data-target="dashboard-section">
+                    <i class="fas fa-chart-line mr-2"></i> Dashboard
+                </li>
+                <li class="nav-item" data-target="customer-section">
+                    <i class="fas fa-users mr-2"></i> Customer Analysis
+                </li>
+                <li class="nav-item" data-target="sms-section">
+                    <i class="fas fa-sms mr-2"></i> SMS Campaigns
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Content Sections -->
+
+        <!-- Upload Section -->
+        <section id="upload-section" class="section active">
+            <h2 class="text-xl font-bold mb-4">Upload Customer Purchase Data</h2>
+            <p class="mb-6 text-gray-600">Upload your customer purchase dataset to analyze customer behavior, calculate Lifetime Value (LTV), predict churn risk, and create targeted SMS campaigns.</p>
+            
+            <div class="drop-zone mb-6" id="drop-zone">
+                <i class="fas fa-file-upload text-4xl text-gray-400 mb-4"></i>
+                <h3 class="font-bold mb-2">Drag & Drop Your CSV File</h3>
+                <p class="text-sm text-gray-500 mb-4">Supports CSV files up to 2GB</p>
+                <button class="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 transition-colors">Select File</button>
+                <input type="file" id="file-input" class="hidden" accept=".csv">
+            </div>
+
+            <div class="card mb-6">
+                <h3 class="font-bold mb-3">Required Data Format:</h3>
+                <p class="mb-3">Your CSV should include the following columns:</p>
+                <ul class="list-disc pl-5 mb-4 text-gray-700">
+                    <li><strong>customer_id:</strong> Unique identifier for each customer</li>
+                    <li><strong>transaction_date:</strong> Date of purchase (YYYY-MM-DD)</li>
+                    <li><strong>transaction_amount:</strong> Purchase amount in dollars</li>
+                    <li><strong>items_purchased:</strong> Items purchased (comma separated)</li>
+                    <li><strong>phone_number:</strong> Customer's phone number (for SMS marketing)</li>
+                    <li><strong>customer_name:</strong> Customer's name (optional)</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 class="font-bold mb-3">Google Gemini API Integration</h3>
+                <p class="mb-4">This dashboard uses Google Gemini API to analyze large datasets efficiently. Configure your API key in the settings.</p>
+                <div class="mb-4">
+                    <label for="api-key" class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                    <input type="password" id="api-key" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your Google Gemini API key">
+                </div>
+                <button id="save-api-key" class="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 transition-colors">Save API Key</button>
+                
+                <div class="mt-6">
+                    <h4 class="font-bold mb-2">Advanced Analysis Capabilities:</h4>
+                    <ul class="list-disc pl-5 text-gray-700">
+                        <li>Customer Lifetime Value (LTV) calculation based on purchase history</li>
+                        <li>AI-powered churn prediction to identify at-risk customers</li>
+                        <li>Purchase pattern analysis to identify customer preferences</li>
+                        <li>Customer segmentation for targeted marketing</li>
+                    </ul>
+                </div>
+                
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <div class="flex items-center text-yellow-800 mb-2">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <span class="font-bold">API Key Not Configured</span>
+                    </div>
+                    <p class="text-sm text-yellow-700">Please add your Google Gemini API key to enable data analysis.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard-section" class="section">
+            <h2 class="text-xl font-bold mb-6">Business Overview</h2>
+            <p class="mb-6 text-gray-600">Analyze your customer data and get actionable insights.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="stat-card">
+                    <h3 class="text-gray-500 text-sm uppercase mb-2">Total Customers</h3>
+                    <div class="text-3xl font-bold mb-1">248</div>
+                    <div class="text-green-600 text-sm">
+                        <i class="fas fa-arrow-up"></i> 12% vs last month
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-gray-500 text-sm uppercase mb-2">Average LTV</h3>
+                    <div class="text-3xl font-bold mb-1">$542</div>
+                    <div class="text-green-600 text-sm">
+                        <i class="fas fa-arrow-up"></i> 8% vs last month
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-gray-500 text-sm uppercase mb-2">Churn Risk</h3>
+                    <div class="text-3xl font-bold mb-1">18%</div>
+                    <div class="text-red-600 text-sm">
+                        <i class="fas fa-arrow-up"></i> 3% vs last month
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-gray-500 text-sm uppercase mb-2">SMS Campaign ROI</h3>
+                    <div class="text-3xl font-bold mb-1">327%</div>
+                    <div class="text-green-600 text-sm">
+                        <i class="fas fa-arrow-up"></i> 15% vs last month
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="card">
+                    <h3 class="font-bold mb-4">Customer Lifetime Value Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="ltv-chart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="font-bold mb-4">Customer Segmentation</h3>
+                    <div class="chart-container">
+                        <canvas id="segment-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-8">
+                <h3 class="font-bold mb-4">Popular Purchase Combinations</h3>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>Items Combination</th>
+                                <th>Purchase Frequency</th>
+                                <th>Average Order Value</th>
+                                <th>Customer Segment</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Pizza + Beer</td>
+                                <td>42%</td>
+                                <td>$28.50</td>
+                                <td><span class="badge badge-success">High Value</span></td>
+                            </tr>
+                            <tr>
+                                <td>Pasta + Wine</td>
+                                <td>38%</td>
+                                <td>$42.75</td>
+                                <td><span class="badge badge-success">High Value</span></td>
+                            </tr>
+                            <tr>
+                                <td>Burger + Fries + Soda</td>
+                                <td>35%</td>
+                                <td>$18.95</td>
+                                <td><span class="badge badge-warning">Medium Value</span></td>
+                            </tr>
+                            <tr>
+                                <td>Salad + Iced Tea</td>
+                                <td>22%</td>
+                                <td>$15.50</td>
+                                <td><span class="badge badge-danger">Low Value</span></td>
+                            </tr>
+                            <tr>
+                                <td>Dessert + Coffee</td>
+                                <td>18%</td>
+                                <td>$12.75</td>
+                                <td><span class="badge badge-warning">Medium Value</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="font-bold mb-4">Churn Risk Analysis</h3>
+                <div class="flex mb-6">
+                    <div class="mr-4">
+                        <span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span>
+                        <span class="text-sm">Low Risk (0-25%)</span>
+                    </div>
+                    <div class="mr-4">
+                        <span class="inline-block w-3 h-3 rounded-full bg-yellow-500 mr-1"></span>
+                        <span class="text-sm">Medium Risk (26-70%)</span>
+                    </div>
+                    <div>
+                        <span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"></span>
+                        <span class="text-sm">High Risk (71-100%)</span>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Last Purchase</th>
+                                <th>Visit Frequency</th>
+                                <th>Churn Risk</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">JD</div>
+                                        <div>
+                                            <div class="font-medium">John Doe</div>
+                                            <div class="text-sm text-gray-500">+1 555-123-4567</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>45 days ago</td>
+                                <td>Monthly</td>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="w-16 mr-2">
+                                            <div class="progress-bar">
+                                                <div class="progress-value bg-red-500" style="width: 85%"></div>
+                                            </div>
+                                        </div>
+                                        <span class="text-red-600 font-medium">85%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">AS</div>
+                                        <div>
+                                            <div class="font-medium">Alice Smith</div>
+                                            <div class="text-sm text-gray-500">+1 555-987-6543</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>38 days ago</td>
+                                <td>Bi-weekly</td>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="w-16 mr-2">
+                                            <div class="progress-bar">
+                                                <div class="progress-value bg-red-500" style="width: 78%"></div>
+                                            </div>
+                                        </div>
+                                        <span class="text-red-600 font-medium">78%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">RJ</div>
+                                        <div>
+                                            <div class="font-medium">Robert Johnson</div>
+                                            <div class="text-sm text-gray-500">+1 555-789-0123</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>30 days ago</td>
+                                <td>Weekly</td>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="w-16 mr-2">
+                                            <div class="progress-bar">
+                                                <div class="progress-value bg-yellow-500" style="width: 65%"></div>
+                                            </div>
+                                        </div>
+                                        <span class="text-yellow-600 font-medium">65%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Customer Analysis Section -->
+        <section id="customer-section" class="section">
+            <h2 class="text-xl font-bold mb-6">Customer Analysis</h2>
+            <p class="mb-6 text-gray-600">Detailed insights into customer behavior and lifetime value.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="segment-card segment-high">
+                    <h3 class="font-bold mb-3">High Value Customers</h3>
+                    <div class="mb-2 text-lg">82 Customers</div>
+                    <div class="mb-3">
+                        <span class="text-3xl font-bold">$842</span>
+                        <span class="text-sm text-gray-600 ml-1">Average LTV</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="font-medium">Visit Frequency</span><br/>Weekly</div>
+                        <div><span class="font-medium">Avg. Order Value</span><br/>$42.50</div>
+                    </div>
+                </div>
+                <div class="segment-card segment-medium">
+                    <h3 class="font-bold mb-3">Medium Value Customers</h3>
+                    <div class="mb-2 text-lg">124 Customers</div>
+                    <div class="mb-3">
+                        <span class="text-3xl font-bold">$485</span>
+                        <span class="text-sm text-gray-600 ml-1">Average LTV</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="font-medium">Visit Frequency</span><br/>Bi-weekly</div>
+                        <div><span class="font-medium">Avg. Order Value</span><br/>$28.75</div>
+                    </div>
+                </div>
+                <div class="segment-card segment-low">
+                    <h3 class="font-bold mb-3">Low Value Customers</h3>
+                    <div class="mb-2 text-lg">42 Customers</div>
+                    <div class="mb-3">
+                        <span class="text-3xl font-bold">$195</span>
+                        <span class="text-sm text-gray-600 ml-1">Average LTV</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="font-medium">Visit Frequency</span><br/>Monthly</div>
+                        <div><span class="font-medium">Avg. Order Value</span><br/>$15.25</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-8">
+                <h3 class="font-bold mb-4">Customer List</h3>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Lifetime Value</th>
+                                <th>Segment</th>
+                                <th>Favorite Items</th>
+                                <th>Last Visit</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">EB</div>
+                                        <div>
+                                            <div class="font-medium">Emily Brown</div>
+                                            <div class="text-sm text-gray-500">+1 555-234-5678</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>$925</td>
+                                <td><span class="badge badge-success">High Value</span></td>
+                                <td>Pasta, Wine, Tiramisu</td>
+                                <td>3 days ago</td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">MW</div>
+                                        <div>
+                                            <div class="font-medium">Michael Wilson</div>
+                                            <div class="text-sm text-gray-500">+1 555-876-5432</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>$768</td>
+                                <td><span class="badge badge-success">High Value</span></td>
+                                <td>Steak, Beer, Fries</td>
+                                <td>1 week ago</td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">SL</div>
+                                        <div>
+                                            <div class="font-medium">Sarah Lee</div>
+                                            <div class="text-sm text-gray-500">+1 555-345-6789</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>$512</td>
+                                <td><span class="badge badge-warning">Medium Value</span></td>
+                                <td>Salad, Iced Tea, Chicken</td>
+                                <td>2 weeks ago</td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">DK</div>
+                                        <div>
+                                            <div class="font-medium">David Kim</div>
+                                            <div class="text-sm text-gray-500">+1 555-987-1234</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>$215</td>
+                                <td><span class="badge badge-danger">Low Value</span></td>
+                                <td>Burger, Soda</td>
+                                <td>1 month ago</td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="flex items-center">
+                                        <div class="avatar mr-3">JT</div>
+                                        <div>
+                                            <div class="font-medium">Jessica Thompson</div>
+                                            <div class="text-sm text-gray-500">+1 555-456-7890</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>$178</td>
+                                <td><span class="badge badge-danger">At Risk</span></td>
+                                <td>Pizza, Salad</td>
+                                <td>2 months ago</td>
+                                <td>
+                                    <button class="btn-action" title="Send SMS"><i class="fas fa-sms"></i></button>
+                                    <button class="btn-action ml-2" title="View Profile"><i class="fas fa-user"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 text-sm text-gray-500">Showing 1 to 5 of 248 customers</div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card">
+                    <h3 class="font-bold mb-4">Popular Items by Customer Segment</h3>
+                    <div class="chart-container">
+                        <canvas id="items-chart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="font-bold mb-4">Visiting Patterns by Day of Week</h3>
+                    <div class="chart-container">
+                        <canvas id="visit-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SMS Marketing Section -->
+        <section id="sms-section" class="section">
+            <h2 class="text-xl font-bold mb-6">SMS Marketing Campaigns</h2>
+            <p class="mb-6 text-gray-600">Create and manage targeted SMS campaigns using Twilio integration.</p>
+            
+            <div class="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div class="flex items-center text-yellow-800 mb-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <span class="font-bold">Twilio API integration is not configured</span>
+                </div>
+                <p class="text-sm text-yellow-700">Please add your Twilio credentials in the Settings page to enable SMS marketing.</p>
+            </div>
+            
+            <div class="card mb-8">
+                <h3 class="font-bold mb-4">Create New Campaign</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <div class="mb-4">
+                            <label for="campaign-name" class="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+                            <input type="text" id="campaign-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter campaign name">
+                        </div>
+                        <div class="mb-4">
+                            <label for="target-segment" class="block text-sm font-medium text-gray-700 mb-1">Target Customer Segment</label>
+                            <select id="target-segment" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select a segment</option>
+                                <option value="high">High Value Customers (82)</option>
+                                <option value="medium">Medium Value Customers (124)</option>
+                                <option value="low">Low Value Customers (42)</option>
+                                <option value="at-risk">At Risk Customers (28)</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="discount-type" class="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                            <select id="discount-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select discount type</option>
+                                <option value="percent">Percentage Discount</option>
+                                <option value="amount">Fixed Amount Discount</option>
+                                <option value="free">Free Item</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="valid-until" class="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
+                            <input type="date" id="valid-until" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <div class="mb-2">
+                            <label for="sms-message" class="block text-sm font-medium text-gray-700 mb-1">SMS Message Template</label>
+                            <p class="text-xs text-gray-500 mb-2">Use {CUSTOMER_NAME}, {DISCOUNT}, {FAVORITE_ITEM}, {VALID_UNTIL} as dynamic variables</p>
+                        </div>
+                        <textarea id="sms-message" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2" placeholder="Enter your SMS message"></textarea>
+                        <div class="text-right text-xs text-gray-500 mb-4"><span id="sms-char-count">0</span>/160 characters (standard SMS length)</div>
+                        
+                        <div class="bg-gray-100 p-4 rounded-md">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">Message Preview</h4>
+                            <div class="bg-green-100 p-3 rounded-md relative mb-2">
+                                <p class="text-sm" id="sms-preview">Hi Emily! We miss you at [Your Restaurant]. Enjoy 15% off your favorite Pasta when you visit us before 09/30/2023. Show this SMS to redeem.</p>
+                                <div class="text-xs text-gray-500 text-right">Just now</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 border-t pt-6">
+                    <h4 class="font-medium mb-3">Campaign Summary</h4>
+                    <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
+                        <div>
+                            <div class="text-gray-600">Target Recipients:</div>
+                            <div class="font-medium">82 customers</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-600">Estimated Cost:</div>
+                            <div class="font-medium">$6.15 (Twilio rates)</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-600">Estimated Response Rate:</div>
+                            <div class="font-medium">25-30%</div>
+                        </div>
+                    </div>
+                    
+                    <button id="send-campaign" class="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 transition-colors">Schedule Campaign</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="font-bold mb-4">Previous Campaigns</h3>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>Campaign</th>
+                                <th>Sent Date</th>
+                                <th>Target Segment</th>
+                                <th>Recipients</th>
+                                <th>Conversions</th>
+                                <th>Revenue</th>
+                                <th>ROI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="font-medium">Summer Special</div>
+                                    <div class="text-sm text-gray-500">20% off any pasta dish</div>
+                                </td>
+                                <td>Jun 15, 2023</td>
+                                <td>High Value</td>
+                                <td>78</td>
+                                <td>
+                                    <div class="font-medium text-green-600">42 (54%)</div>
+                                </td>
+                                <td>$1,680</td>
+                                <td>385%</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="font-medium">Win-Back Campaign</div>
+                                    <div class="text-sm text-gray-500">25% off entire order</div>
+                                </td>
+                                <td>May 03, 2023</td>
+                                <td>At Risk</td>
+                                <td>45</td>
+                                <td>
+                                    <div class="font-medium text-green-600">18 (40%)</div>
+                                </td>
+                                <td>$920</td>
+                                <td>270%</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="font-medium">Birthday Special</div>
+                                    <div class="text-sm text-gray-500">Free dessert with meal</div>
+                                </td>
+                                <td>Apr 12, 2023</td>
+                                <td>All Customers</td>
+                                <td>32</td>
+                                <td>
+                                    <div class="font-medium text-green-600">24 (75%)</div>
+                                </td>
+                                <td>$1,250</td>
+                                <td>425%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Initialize SQL.js
+        let db;
+        let SQL;
+        let currentUser = null;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Load SQL.js
+                SQL = await initSqlJs({
+                    locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.6.2/dist/sql-wasm.wasm`
+                });
+                
+                // Create a database
+                db = new SQL.Database();
+                
+                // Create users table
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+                
+                // Add a demo user
+                const demoUser = db.exec("SELECT * FROM users WHERE email = 'demo@example.com'");
+                if (!demoUser.length) {
+                    db.run("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", 
+                        ["Demo User", "demo@example.com", "password123"]);
+                }
+                
+                console.log("Database initialized successfully");
+            } catch (e) {
+                console.error("Error initializing SQL.js:", e);
+            }
+            
+            // Initialize charts when dashboard is active
+            initCharts();
+        });
+
+        // Event listener for navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                
+                const targetSection = this.getAttribute('data-target');
+                document.querySelectorAll('.section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById(targetSection).classList.add('active');
+            });
+        });
+
+        // Event listeners for authentication forms
+        document.getElementById('show-register').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+        });
+
+        document.getElementById('show-login').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        });
+
+        // Register user
+        document.getElementById('register-button').addEventListener('click', function() {
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm').value;
+            const errorElement = document.getElementById('register-error');
+            
+            // Validate input
+            if (!name || !email || !password || !confirmPassword) {
+                errorElement.textContent = "All fields are required";
+                errorElement.classList.remove('hidden');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                errorElement.textContent = "Passwords do not match";
+                errorElement.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                // Check if user already exists
+                const existingUser = db.exec(`SELECT * FROM users WHERE email = '${email}'`);
+                if (existingUser.length && existingUser[0].values.length) {
+                    errorElement.textContent = "User with this email already exists";
+                    errorElement.classList.remove('hidden');
+                    return;
+                }
+                
+                // Insert new user
+                db.run("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", 
+                    [name, email, password]);
+                
+                // Auto login
+                currentUser = {
+                    name: name,
+                    email: email
+                };
+                
+                // Show main application
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('main-container').style.display = 'block';
+                document.getElementById('user-name').textContent = name;
+                
+                console.log("User registered successfully");
+            } catch (e) {
+                errorElement.textContent = "Error registering user: " + e.message;
+                errorElement.classList.remove('hidden');
+                console.error("Registration error:", e);
+            }
+        });
+
+        // Login user
+        document.getElementById('login-button').addEventListener('click', function() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorElement = document.getElementById('login-error');
+            
+            // Validate input
+            if (!email || !password) {
+                errorElement.textContent = "Email and password are required";
+                errorElement.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                // Check user credentials
+                const result = db.exec(`SELECT * FROM users WHERE email = '${email}' AND password = '${password}'`);
+                
+                if (result.length && result[0].values.length) {
+                    const userData = result[0].values[0];
+                    currentUser = {
+                        id: userData[0],
+                        name: userData[1],
+                        email: userData[2]
+                    };
+                    
+                    // Show main application
+                    document.getElementById('auth-container').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'block';
+                    document.getElementById('user-name').textContent = currentUser.name;
+                    
+                    console.log("User logged in successfully");
+                } else {
+                    errorElement.textContent = "Invalid email or password";
+                    errorElement.classList.remove('hidden');
+                }
+            } catch (e) {
+                errorElement.textContent = "Error logging in: " + e.message;
+                errorElement.classList.remove('hidden');
+                console.error("Login error:", e);
+            }
+        });
+
+        // Logout
+        document.getElementById('logout-button').addEventListener('click', function() {
+            currentUser = null;
+            document.getElementById('main-container').style.display = 'none';
+            document.getElementById('auth-container').style.display = 'block';
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').classList.add('hidden');
+        });
+
+        // File upload handling
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-blue-500');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500');
+            
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            if (file.type !== 'text/csv') {
+                alert('Please upload a CSV file');
+                return;
+            }
+            
+            // Simulate file processing
+            const reader = new FileReader();
+            reader.onload = () => {
+                // Navigate to dashboard after "processing"
+                setTimeout(() => {
+                    document.querySelector('[data-target="dashboard-section"]').click();
+                    alert('File uploaded and processed successfully!');
+                }, 1500);
+            };
+            reader.readAsText(file);
+        }
+
+        // API Key handling
+        document.getElementById('save-api-key').addEventListener('click', function() {
+            const apiKey = document.getElementById('api-key').value;
+            if (apiKey) {
+                alert('API key saved successfully!');
+            } else {
+                alert('Please enter a valid API key');
+            }
+        });
+
+        // SMS character count
+        const smsMessage = document.getElementById('sms-message');
+        const smsCharCount = document.getElementById('sms-char-count');
+        const smsPreview = document.getElementById('sms-preview');
+        
+        smsMessage.addEventListener('input', function() {
+            const count = this.value.length;
+            smsCharCount.textContent = count;
+            
+            // Update preview
+            if (count > 0) {
+                smsPreview.textContent = this.value;
+            } else {
+                smsPreview.textContent = "Hi Emily! We miss you at [Your Restaurant]. Enjoy 15% off your favorite Pasta when you visit us before 09/30/2023. Show this SMS to redeem.";
+            }
+        });
+
+        // Send campaign button
+        document.getElementById('send-campaign').addEventListener('click', function() {
+            const campaignName = document.getElementById('campaign-name').value;
+            const targetSegment = document.getElementById('target-segment').value;
+            
+            if (!campaignName || !targetSegment) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            alert('Campaign scheduled successfully!');
+        });
+
+        // Initialize charts
+        function initCharts() {
+            // LTV Chart
+            const ltvCtx = document.getElementById('ltv-chart').getContext('2d');
+            new Chart(ltvCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['$0-$100', '$101-$250', '$251-$500', '$501-$750', '$751-$1000', '$1000+'],
+                    datasets: [{
+                        label: 'Number of Customers',
+                        data: [22, 45, 78, 64, 28, 11],
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Segment Chart
+            const segmentCtx = document.getElementById('segment-chart').getContext('2d');
+            new Chart(segmentCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['High Value', 'Medium Value', 'Low Value', 'At Risk'],
+                    datasets: [{
+                        data: [82, 124, 42, 28],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(107, 114, 128, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(107, 114, 128, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+            // Items Chart
+            const itemsCtx = document.getElementById('items-chart').getContext('2d');
+            new Chart(itemsCtx, {
+                type: 'horizontalBar',
+                data: {
+                    labels: ['Pizza', 'Pasta', 'Steak', 'Burger', 'Salad', 'Dessert'],
+                    datasets: [
+                        {
+                            label: 'High Value',
+                            data: [75, 85, 62, 45, 30, 55],
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Medium Value',
+                            data: [60, 50, 45, 70, 55, 40],
+                            backgroundColor: 'rgba(245, 158, 11, 0.7)',
+                            borderColor: 'rgba(245, 158, 11, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Low Value',
+                            data: [40, 30, 25, 55, 70, 25],
+                            backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Visit Chart
+            const visitCtx = document.getElementById('visit-chart').getContext('2d');
+            new Chart(visitCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                    datasets: [
+                        {
+                            label: 'High Value',
+                            data: [28, 32, 36, 42, 58, 70, 45],
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Medium Value',
+                            data: [35, 38, 40, 45, 65, 75, 50],
+                            borderColor: 'rgba(245, 158, 11, 1)',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Low Value',
+                            data: [15, 18, 20, 22, 35, 50, 30],
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // Initialize SQL.js
+        async function initSqlJs(config) {
+            const sqlPromise = window.initSqlJs(config);
+            return sqlPromise;
+        }
+    </script>
+</body>
+</html>
